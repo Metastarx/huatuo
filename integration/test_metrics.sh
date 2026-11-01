@@ -137,8 +137,16 @@ done
 
 assert_tcp_memory_usage_percent
 
+# At the limit the documented percentage is 100, not the raw ratio 1.
+printf 'TCP: inuse 3 mem 12340770\nUDP: inuse 2 mem 6\nRAW: inuse 1\n' > "${METRICS_SOCKSTAT}.next"
+mv "${METRICS_SOCKSTAT}.next" "${METRICS_SOCKSTAT}"
+huatuo_bamai_collect_metrics
+assert_tcp_memory_usage_percent
+
 # Changing the limit to zero must keep the percentage finite at zero instead
 # of producing NaN or dividing by zero.
+printf 'TCP: inuse 3 mem 10\nUDP: inuse 2 mem 6\nRAW: inuse 1\n' > "${METRICS_SOCKSTAT}.next"
+mv "${METRICS_SOCKSTAT}.next" "${METRICS_SOCKSTAT}"
 printf '0 0 0\n' > "${METRICS_TCP_MEM}.next"
 mv "${METRICS_TCP_MEM}.next" "${METRICS_TCP_MEM}"
 huatuo_bamai_collect_metrics
