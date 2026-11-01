@@ -108,6 +108,7 @@ func runNetNamespaceTestSuite(t *testing.T) {
 	t.Run("restore failure leaves caller unchanged", func(t *testing.T) {
 		testNetNamespaceRestoreFailureKeepsCaller(t, targetPID, targetCookie)
 	})
+	t.Run("invalid pid leaves caller unchanged", testNetNamespaceInvalidPIDKeepsCaller)
 }
 
 func runNetNamespaceTestsInUserNamespace(t *testing.T) {
@@ -231,6 +232,41 @@ func testNetNamespaceRestoreFailureKeepsCaller(t *testing.T, targetPID int, targ
 	}
 	if afterCookie != beforeCookie {
 		t.Fatalf("caller cookie changed after successful call: %d -> %d", beforeCookie, afterCookie)
+	}
+}
+
+func testNetNamespaceInvalidPIDKeepsCaller(t *testing.T) {
+	t.Helper()
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	beforeNS, err := currentThreadNetNamespace()
+	if err != nil {
+		t.Fatalf("read caller namespace before invalid PID lookup: %v", err)
+	}
+	beforeCookie, err := currentThreadNetNamespaceCookie()
+	if err != nil {
+		t.Fatalf("read caller cookie before invalid PID lookup: %v", err)
+	}
+
+	if cookie, err := NetNamespaceCookieByPID(-1); err == nil || cookie != 0 {
+		t.Fatalf("NetNamespaceCookieByPID(-1) = %d, %v, want zero result and error", cookie, err)
+	}
+
+	afterNS, err := currentThreadNetNamespace()
+	if err != nil {
+		t.Fatalf("read caller namespace after invalid PID lookup: %v", err)
+	}
+	if afterNS != beforeNS {
+		t.Fatalf("caller namespace changed after invalid PID lookup: %q -> %q", beforeNS, afterNS)
+	}
+	afterCookie, err := currentThreadNetNamespaceCookie()
+	if err != nil {
+		t.Fatalf("read caller cookie after invalid PID lookup: %v", err)
+	}
+	if afterCookie != beforeCookie {
+		t.Fatalf("caller cookie changed after invalid PID lookup: %d -> %d", beforeCookie, afterCookie)
 	}
 }
 
