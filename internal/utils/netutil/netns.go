@@ -19,14 +19,17 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"syscall"
+
+	"github.com/ccfos/huatuo/internal/procfs"
 
 	"golang.org/x/sys/unix"
 )
 
 // NetNamespaceInumByPID returns the network namespace inum for pid.
 func NetNamespaceInumByPID(pid int) (uint64, error) {
-	netnsStat, err := os.Stat(fmt.Sprintf("/proc/%d/ns/net", pid))
+	netnsStat, err := os.Stat(procfs.Path(strconv.Itoa(pid), "ns/net"))
 	if err != nil {
 		return 0, err
 	}
@@ -75,13 +78,13 @@ func netNamespaceCookieInPIDNamespace(pid int) (cookie uint64, err error) {
 	// /proc/self names the thread-group leader. A thread may have entered a
 	// different network namespace, so snapshot this worker's own namespace
 	// through thread-self; restoring to /proc/self would silently discard it.
-	curNS, err := os.Open("/proc/thread-self/ns/net")
+	curNS, err := os.Open(procfs.Path("thread-self", "ns/net"))
 	if err != nil {
 		return 0, fmt.Errorf("open current netns: %w", err)
 	}
 	defer curNS.Close()
 
-	targetNS, err := os.Open(fmt.Sprintf("/proc/%d/ns/net", pid))
+	targetNS, err := os.Open(procfs.Path(strconv.Itoa(pid), "ns/net"))
 	if err != nil {
 		return 0, fmt.Errorf("open pid %d netns: %w", pid, err)
 	}
