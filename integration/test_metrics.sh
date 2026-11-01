@@ -49,6 +49,35 @@ assert_sockstat_value() {
 		|| fatal "sockstat ${name}: expected gauge type"
 }
 
+assert_tcp_memory_usage_percent() {
+	local metrics_file="${HUATUO_BAMAI_TEST_TMPDIR}/metrics.txt"
+	awk '
+		$1 ~ /^huatuo_bamai_tcp_memory_usage_pages\{/ { usage = $2 }
+		$1 ~ /^huatuo_bamai_tcp_memory_limit_pages\{/ { limit = $2 }
+		$1 ~ /^huatuo_bamai_tcp_memory_usage_percent\{/ { percent = $2 }
+		END {
+			if (usage == "" || limit == "" || percent == "") {
+				printf "tcp memory samples missing: usage_pages=%s limit_pages=%s usage_percent=%s\n", usage, limit, percent > "/dev/stderr"
+				exit 2
+			}
+			if (limit <= 0) {
+				printf "tcp memory limit_pages is not positive: %s\n", limit > "/dev/stderr"
+				exit 3
+			}
+			expected = usage / limit * 100
+			delta = percent - expected
+			if (delta < 0) {
+				delta = -delta
+			}
+			if (delta > 1e-12) {
+				printf "tcp memory usage_percent=%s, want %s (usage_pages=%s / limit_pages=%s * 100)\n", percent, expected, usage, limit > "/dev/stderr"
+				exit 4
+			}
+		}
+	' "${metrics_file}" \
+		|| fatal "tcp memory usage_percent does not match usage_pages / limit_pages * 100; see ${metrics_file}"
+}
+
 assert_expected_metrics() {
 	local file=$1 status=0 missing
 	local samples="${HUATUO_BAMAI_TEST_TMPDIR}/expected-samples.txt"
@@ -84,6 +113,8 @@ for metrics_expected in "${HUATUO_BAMAI_TEST_EXPECTED}"/test_*.txt; do
 	fi
 	assert_expected_metrics "${metrics_expected}"
 done
+
+assert_tcp_memory_usage_percent
 
 # Use a power of two so both the input and expected float64 result are exact.
 # The product exceeds native int on both 32-bit and 64-bit Linux.
