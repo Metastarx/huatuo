@@ -23,6 +23,7 @@ source "${ROOT_DIR}/integration/config.sh"
 
 readonly METRICS_FIXTURE_ROOT="${HUATUO_BAMAI_TEST_TMPDIR}/metrics-fixtures"
 readonly METRICS_SOCKSTAT="${METRICS_FIXTURE_ROOT}/proc/1/net/sockstat"
+readonly METRICS_TCP_MEM="${METRICS_FIXTURE_ROOT}/proc/sys/net/ipv4/tcp_mem"
 readonly METRICS_SOCKSTAT_EXPECTED="${HUATUO_BAMAI_TEST_TMPDIR}/expected-sockstat.txt"
 require_commands getconf awk grep
 METRICS_PAGE_SIZE=$(getconf PAGESIZE) || fatal "getconf PAGESIZE failed"
@@ -78,6 +79,26 @@ assert_tcp_memory_usage_percent() {
 		|| fatal "tcp memory usage_percent does not match usage_pages / limit_pages * 100; see ${metrics_file}"
 }
 
+assert_tcp_memory_zero_limit() {
+	local metrics_file="${HUATUO_BAMAI_TEST_TMPDIR}/metrics.txt"
+	awk '
+		$1 ~ /^huatuo_bamai_tcp_memory_usage_pages\{/ { usage = $2 }
+		$1 ~ /^huatuo_bamai_tcp_memory_limit_pages\{/ { limit = $2 }
+		$1 ~ /^huatuo_bamai_tcp_memory_usage_percent\{/ { percent = $2 }
+		END {
+			if (usage == "" || limit == "" || percent == "") {
+				printf "tcp memory samples missing: usage_pages=%s limit_pages=%s usage_percent=%s\n", usage, limit, percent > "/dev/stderr"
+				exit 2
+			}
+			if (limit != 0 || usage <= 0 || percent != 0) {
+				printf "zero-limit check failed: usage_pages=%s limit_pages=%s usage_percent=%s\n", usage, limit, percent > "/dev/stderr"
+				exit 3
+			}
+		}
+	' "${metrics_file}" \
+		|| fatal "tcp memory zero limit must report usage_percent=0 with non-zero usage_pages; see ${metrics_file}"
+}
+
 assert_expected_metrics() {
 	local file=$1 status=0 missing
 	local samples="${HUATUO_BAMAI_TEST_TMPDIR}/expected-samples.txt"
@@ -115,6 +136,13 @@ for metrics_expected in "${HUATUO_BAMAI_TEST_EXPECTED}"/test_*.txt; do
 done
 
 assert_tcp_memory_usage_percent
+
+# Changing the limit to zero must keep the percentage finite at zero instead
+# of producing NaN or dividing by zero.
+printf '0 0 0\n' > "${METRICS_TCP_MEM}.next"
+mv "${METRICS_TCP_MEM}.next" "${METRICS_TCP_MEM}"
+huatuo_bamai_collect_metrics
+assert_tcp_memory_zero_limit
 
 # Use a power of two so both the input and expected float64 result are exact.
 # The product exceeds native int on both 32-bit and 64-bit Linux.
