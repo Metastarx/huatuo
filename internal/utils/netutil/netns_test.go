@@ -411,6 +411,15 @@ func runNetNamespaceCaller() {
 			done <- fmt.Errorf("direct caller namespace changed: %q -> %q", beforeNS, directNS)
 			return
 		}
+		directAfterCookie, err := currentThreadNetNamespaceCookie()
+		if err != nil {
+			done <- err
+			return
+		}
+		if directAfterCookie != beforeCookie {
+			done <- fmt.Errorf("direct caller cookie changed: %d -> %d", beforeCookie, directAfterCookie)
+			return
+		}
 		done <- nil
 	}()
 
