@@ -49,7 +49,10 @@ func NetNamespaceCookieByPID(pid int) (uint64, error) {
 	done := make(chan netNamespaceCookieResult, 1)
 	go func() {
 		cookie, err := netNamespaceCookieInPIDNamespace(pid)
-		done <- netNamespaceCookieResult{cookie: cookie, err: err}
+		done <- netNamespaceCookieResult{
+			cookie: cookie,
+			err:    err,
+		}
 	}()
 	result := <-done
 	return result.cookie, result.err
