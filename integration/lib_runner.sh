@@ -60,6 +60,7 @@ declare -A runner_test_groups=(
 	["test_profiler_native_memory_virtual_alloc.sh"]=independent
 	["test_profiler_output_flags.sh"]=independent
 	["test_profiler_python_cpu_multi_pid.sh"]=profiler
+	["test_profiler_python_cpu_unlinked_executable.sh"]=profiler
 	["test_profiler_user_kernel_frames.sh"]=independent
 	["test_tcp_retransmit_ratelimit.sh"]=network
 	["test_tcp_retransmit_syn.sh"]=network
