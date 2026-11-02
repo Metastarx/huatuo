@@ -114,7 +114,7 @@ func runNetNamespaceTestSuite(t *testing.T) {
 func runNetNamespaceTestsInUserNamespace(t *testing.T) {
 	t.Helper()
 
-	cmd := exec.Command(os.Args[0], "-test.run=^TestNetNamespaceCookieByPID$")
+	cmd := exec.Command(os.Args[0], "-test.v", "-test.run=^TestNetNamespaceCookieByPID$")
 	cmd.Env = append(os.Environ(), netNamespaceModeEnv+"=namespaced")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: unix.CLONE_NEWUSER | unix.CLONE_NEWNET,
