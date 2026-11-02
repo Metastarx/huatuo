@@ -23,6 +23,7 @@ source "${ROOT_DIR}/integration/config.sh"
 
 readonly METRICS_FIXTURE_ROOT="${HUATUO_BAMAI_TEST_TMPDIR}/metrics-fixtures"
 readonly METRICS_SOCKSTAT="${METRICS_FIXTURE_ROOT}/proc/1/net/sockstat"
+readonly METRICS_TCP_MEM_SOCKSTAT="${METRICS_FIXTURE_ROOT}/proc/net/sockstat"
 readonly METRICS_TCP_MEM="${METRICS_FIXTURE_ROOT}/proc/sys/net/ipv4/tcp_mem"
 readonly METRICS_SOCKSTAT_EXPECTED="${HUATUO_BAMAI_TEST_TMPDIR}/expected-sockstat.txt"
 require_commands getconf awk grep
@@ -77,6 +78,22 @@ assert_tcp_memory_usage_percent() {
 		}
 	' "${metrics_file}" \
 		|| fatal "tcp memory usage_percent does not match usage_pages / limit_pages * 100; see ${metrics_file}"
+}
+
+assert_tcp_memory_at_limit() {
+	local metrics_file="${HUATUO_BAMAI_TEST_TMPDIR}/metrics.txt"
+	awk '
+		$1 ~ /^huatuo_bamai_tcp_memory_usage_pages\{/ { usage = $2 }
+		$1 ~ /^huatuo_bamai_tcp_memory_limit_pages\{/ { limit = $2 }
+		$1 ~ /^huatuo_bamai_tcp_memory_usage_percent\{/ { percent = $2 }
+		END {
+			if (usage != 12340770 || limit != 12340770 || percent != 100) {
+				printf "at-limit check failed: usage_pages=%s limit_pages=%s usage_percent=%s\n", usage, limit, percent > "/dev/stderr"
+				exit 2
+			}
+		}
+	' "${metrics_file}" \
+		|| fatal "tcp memory at the limit must report usage_pages=limit_pages=12340770 and usage_percent=100; see ${metrics_file}"
 }
 
 assert_tcp_memory_zero_limit() {
@@ -138,15 +155,15 @@ done
 assert_tcp_memory_usage_percent
 
 # At the limit the documented percentage is 100, not the raw ratio 1.
-printf 'TCP: inuse 3 mem 12340770\nUDP: inuse 2 mem 6\nRAW: inuse 1\n' > "${METRICS_SOCKSTAT}.next"
-mv "${METRICS_SOCKSTAT}.next" "${METRICS_SOCKSTAT}"
+printf 'TCP: inuse 3 mem 12340770\nUDP: inuse 2 mem 6\nRAW: inuse 1\n' > "${METRICS_TCP_MEM_SOCKSTAT}.next"
+mv "${METRICS_TCP_MEM_SOCKSTAT}.next" "${METRICS_TCP_MEM_SOCKSTAT}"
 huatuo_bamai_collect_metrics
-assert_tcp_memory_usage_percent
+assert_tcp_memory_at_limit
 
 # Changing the limit to zero must keep the percentage finite at zero instead
 # of producing NaN or dividing by zero.
-printf 'TCP: inuse 3 mem 10\nUDP: inuse 2 mem 6\nRAW: inuse 1\n' > "${METRICS_SOCKSTAT}.next"
-mv "${METRICS_SOCKSTAT}.next" "${METRICS_SOCKSTAT}"
+printf 'TCP: inuse 3 mem 10\nUDP: inuse 2 mem 6\nRAW: inuse 1\n' > "${METRICS_TCP_MEM_SOCKSTAT}.next"
+mv "${METRICS_TCP_MEM_SOCKSTAT}.next" "${METRICS_TCP_MEM_SOCKSTAT}"
 printf '0 0 0\n' > "${METRICS_TCP_MEM}.next"
 mv "${METRICS_TCP_MEM}.next" "${METRICS_TCP_MEM}"
 huatuo_bamai_collect_metrics
